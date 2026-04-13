@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * github-channel MCP server
+ * github-claude-channel MCP server
  *
  * One instance per Claude Code session. Connects to the shared broker daemon
  * (starting it if needed) and pushes GitHub events as channel notifications.
@@ -26,7 +26,7 @@ const POLL_INTERVAL_MS = 2_000;
 const HEARTBEAT_INTERVAL_MS = 10_000;
 
 function log(msg: string) {
-  console.error(`[github-channel] ${msg}`);
+  console.error(`[github-claude-channel] ${msg}`);
 }
 
 // ─── Broker communication ─────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ const watchedRepos = new Set<string>();
 // ─── MCP server ──────────────────────────────────────────────────────────────
 
 const mcp = new Server(
-  { name: "github-channel", version: "1.0.0" },
+  { name: "github-claude-channel", version: "1.0.0" },
   {
     capabilities: {
       experimental: { "claude/channel": {} },

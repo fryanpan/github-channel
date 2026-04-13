@@ -1,4 +1,4 @@
-# github-channel
+# github-claude-channel
 
 A Claude Code plugin that delivers GitHub events — CI results, PR reviews, merges, and deploys — as live channel notifications into your running CLI session.
 
@@ -35,15 +35,15 @@ When a PR merges, the server automatically watches for a deploy workflow to comp
 ## Install
 
 ```bash
-claude plugin install github:fryanpan/github-channel
+claude plugin install github:fryanpan/github-claude-channel
 ```
 
 Add your GitHub token to `~/.claude.json` under the plugin's env:
 
 ```json
-"github-channel": {
+"github-claude-channel": {
   "command": "bun",
-  "args": ["/path/to/github-channel/server.ts"],
+  "args": ["/path/to/github-claude-channel-mcp/server.ts"],
   "env": {
     "GITHUB_TOKEN": "github_pat_..."
   }
@@ -89,8 +89,8 @@ Each Mac user gets their own broker process using their own token and home direc
 ## Development
 
 ```bash
-git clone https://github.com/fryanpan/github-channel
-cd github-channel
+git clone https://github.com/fryanpan/github-claude-channel
+cd github-claude-channel
 bun install
 GITHUB_TOKEN=... bun broker.ts   # start broker
 bun server.ts                    # start MCP server (in another terminal)

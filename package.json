@@ -1,5 +1,5 @@
 {
-  "name": "github-channel-mcp",
+  "name": "github-claude-channel-mcp",
   "version": "0.1.0",
   "description": "GitHub webhook events as Claude Code channel notifications",
   "module": "server.ts",
