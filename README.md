@@ -28,7 +28,7 @@ Events:
 ## Install
 
 ```bash
-claude plugin install github:bryanchan/github-channel
+claude plugin install github:fryanpan/github-channel
 ```
 
 ## Setup
@@ -93,7 +93,7 @@ State is persisted in `~/.github-channel-mcp.json`.
 ## Development
 
 ```bash
-git clone https://github.com/bryanchan/github-channel
+git clone https://github.com/fryanpan/github-channel
 cd github-channel
 bun install
 bun server.ts
