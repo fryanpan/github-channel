@@ -1,29 +1,36 @@
 # github-channel
 
-A Claude Code plugin that delivers GitHub events — CI results, PR reviews, Copilot comments, deploys, merges — as live channel notifications into your running CLI session.
+A Claude Code plugin that delivers GitHub events — CI results, PR reviews, merges, and deploys — as live channel notifications into your running CLI session.
+
+No webhooks. No public URL. Uses your existing `gh` credentials.
 
 ## What you get
 
-While you're coding, events arrive as channel notifications without any manual polling:
+While you're coding, events arrive automatically:
 
 ```
 ✅ CI success on `owner/repo` (`main` @ a1b2c3d)
 
-🔄 alice requested changes on PR #42: Add retry logic
-> The timeout value should be configurable
+👀 Review requested on `owner/repo`: **Add retry logic**
 
-🚀 Deploy to production succeeded on `owner/repo` (a1b2c3d @ `main`)
+🔀 PR #42 merged on `owner/repo`: **Add retry logic**
+
+🚀 Deploy CI success on `owner/repo` (a1b2c3d @ `main`)
+  https://github.com/owner/repo/actions/runs/...
 ```
 
-Events:
+When a PR merges, the server automatically watches for a deploy workflow to complete — polling every 30 seconds for up to 30 minutes. Multiple PRs merging in parallel are each tracked independently.
 
-| Source | Notification |
-|--------|-------------|
-| GitHub Actions / CI | ✅/❌ check_suite or workflow_run completed |
+## Events
+
+| Event | Notification |
+|-------|-------------|
+| CI passes / fails | ✅/❌ check suite completed |
 | PR merged | 🔀 |
-| PR review: approved / changes requested | ✅/🔄 |
-| Copilot or bot PR comment | 🤖 |
-| Deploy status | 🚀/💥 |
+| PR closed without merging | 🚫 |
+| Review requested | 👀 |
+| Mention / comment | 💬 |
+| Deploy workflow completed | 🚀/💥 (triggered by merge) |
 
 ## Install
 
@@ -31,64 +38,53 @@ Events:
 claude plugin install github:fryanpan/github-channel
 ```
 
-## Setup
-
-### 1. Expose the webhook receiver
-
-GitHub needs a public URL to reach your local machine. [cloudflared](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/) is free with no account required:
-
-```bash
-brew install cloudflared
-cloudflared tunnel --url http://localhost:7902
-# → https://randomly-named.trycloudflare.com
-```
-
-Keep this running in a terminal tab.
-
-### 2. Watch a repo
-
-In your Claude session:
-
-```
-set_webhook_url https://randomly-named.trycloudflare.com
-watch_repo auto    # detects from cwd, or specify "owner/repo"
-```
-
-That's it. GitHub webhooks are registered automatically and events start flowing.
-
-### Auto-register webhooks (optional)
-
-Add a GitHub token to auto-register and clean up webhooks when you call `watch_repo`/`unwatch_repo`. Needs `repo` + `admin:repo_hook` scopes.
-
-Add to your `~/.claude.json` under the `github-channel` MCP server entry:
+Add your GitHub token to `~/.claude.json` under the plugin's env:
 
 ```json
-"env": {
-  "GITHUB_TOKEN": "github_pat_..."
+"github-channel": {
+  "command": "bun",
+  "args": ["/path/to/github-channel/server.ts"],
+  "env": {
+    "GITHUB_TOKEN": "github_pat_..."
+  }
 }
 ```
 
-Without a token, you can still use the plugin — just configure webhooks manually in GitHub → repo Settings → Webhooks. Run `show_webhook_secret` to get the HMAC secret.
+The token needs `repo` scope (for reading notifications and action runs). No `admin:repo_hook` needed.
+
+## Setup
+
+```
+watch_repo auto    # detects repo from cwd, or specify "owner/repo"
+```
+
+That's it. The server auto-detects the repo from your working directory and starts listening.
+
+## How it works
+
+A **broker daemon** runs once per user (started automatically). It polls `/notifications` every 5 seconds and `/actions/runs` every 30 seconds when a deploy watch is active. Each Claude Code session connects to the broker and receives events for the repos it's watching.
+
+Multiple sessions on the same machine all receive events — each session independently subscribes to repos, and the broker fans out deliveries.
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `watch_repo` | Watch a repo (`"auto"` detects from cwd) |
-| `unwatch_repo` | Stop watching + delete webhook |
-| `list_watched` | Show watched repos and webhook status |
-| `set_webhook_url` | Set the public URL (cloudflared/ngrok) |
-| `show_webhook_secret` | Get HMAC secret for manual webhook setup |
+| `unwatch_repo` | Stop watching a repo |
+| `list_watched` | Show repos this session is watching |
+| `show_status` | Show broker health, sessions, and active deploy watches |
 
 ## Env vars
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GITHUB_TOKEN` | — | PAT with `repo` + `admin:repo_hook` scopes |
-| `GITHUB_CHANNEL_PORT` | `7902` | Local webhook receiver port |
-| `GITHUB_WEBHOOK_SECRET` | auto-generated | Override the HMAC secret |
+| `GITHUB_TOKEN` | — | PAT with `repo` scope |
+| `GITHUB_CHANNEL_PORT` | `7902` | Broker port (change if 7902 is taken by another user) |
 
-State is persisted in `~/.github-channel-mcp.json`.
+## Multi-user
+
+Each Mac user gets their own broker process using their own token and home directory. If two users need to share port 7902, the second user sets `GITHUB_CHANNEL_PORT=7903` in their shell profile.
 
 ## Development
 
@@ -96,10 +92,7 @@ State is persisted in `~/.github-channel-mcp.json`.
 git clone https://github.com/fryanpan/github-channel
 cd github-channel
 bun install
-bun server.ts
-```
-
-Test the webhook receiver:
-```bash
-curl http://localhost:7902/health  # → ok
+GITHUB_TOKEN=... bun broker.ts   # start broker
+bun server.ts                    # start MCP server (in another terminal)
+curl http://localhost:7902/state # inspect broker state
 ```
