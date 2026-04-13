@@ -1,0 +1,21 @@
+{
+  "name": "github-channel-mcp",
+  "version": "0.1.0",
+  "description": "GitHub webhook events as Claude Code channel notifications",
+  "module": "server.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "server": "bun server.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1"
+  }
+}

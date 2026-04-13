@@ -1,0 +1,16 @@
+{
+  "name": "github-channel",
+  "version": "1.0.0",
+  "description": "GitHub CI, review, and deploy events as Claude Code channel notifications",
+  "channels": [
+    {
+      "server": "github-channel"
+    }
+  ],
+  "mcpServers": {
+    "github-channel": {
+      "command": "bun",
+      "args": ["./server.ts"]
+    }
+  }
+}
