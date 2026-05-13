@@ -1,0 +1,17 @@
+{
+  "name": "github-claude-channel",
+  "owner": {
+    "name": "Bryan Chan",
+    "url": "https://github.com/fryanpan"
+  },
+  "description": "GitHub CI / review / deploy events delivered to Claude Code sessions as channel notifications.",
+  "plugins": [
+    {
+      "name": "github-claude-channel",
+      "source": ".",
+      "description": "MCP tools (watch/unwatch/list/status) + PreToolUse auto-approve hook for plugin-owned operations.",
+      "version": "1.0.0",
+      "homepage": "https://github.com/fryanpan/github-claude-channel"
+    }
+  ]
+}
