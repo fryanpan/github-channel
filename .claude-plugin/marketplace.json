@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "github-claude-channel",
-      "source": ".",
+      "source": "./",
       "description": "MCP tools (watch/unwatch/list/status) + PreToolUse auto-approve hook for plugin-owned operations.",
       "version": "1.0.0",
       "homepage": "https://github.com/fryanpan/github-claude-channel"
