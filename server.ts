@@ -56,7 +56,11 @@ async function ensureBroker(): Promise<void> {
     return;
   }
   log("Starting broker...");
-  const proc = Bun.spawn(["bun", BROKER_SCRIPT], {
+  // process.execPath, not a bare "bun": resolving "bun" from PATH is the same
+  // bug the launcher exists to fix, one level down. A session launched without
+  // an interactive shell has no bun on PATH, so this spawn would ENOENT even
+  // though the server itself started fine.
+  const proc = Bun.spawn([process.execPath, BROKER_SCRIPT], {
     stdio: ["ignore", "ignore", "inherit"],
     env: process.env as Record<string, string>,
   });

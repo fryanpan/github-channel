@@ -32,25 +32,39 @@ When a PR merges, the server automatically watches for a deploy workflow to comp
 | Mention / comment | 💬 |
 | Deploy workflow completed | 🚀/💥 (triggered by merge) |
 
+## Requirements
+
+[bun](https://bun.sh) — the server uses `bun:sqlite` and other Bun APIs, so node is not a
+substitute. You do not need bun on your `PATH`: the plugin ships a `/bin/sh` launcher that
+finds bun itself, so it works in sessions started by launchd, a GUI app, or cron, where
+your shell profile never runs.
+
+The first launch resolves `@modelcontextprotocol/sdk` through bun's automatic install, so
+it needs network access once. Subsequent launches run from bun's cache, offline.
+
 ## Install
 
 ```bash
 claude plugin install github:fryanpan/github-claude-channel
 ```
 
-Add your GitHub token to `~/.claude.json` under the plugin's env:
+Then put your GitHub token where the launcher will find it:
 
-```json
-"github-claude-channel": {
-  "command": "bun",
-  "args": ["/path/to/github-claude-channel-mcp/server.ts"],
-  "env": {
-    "GITHUB_TOKEN": "github_pat_..."
-  }
-}
+```bash
+mkdir -p ~/.config/github-claude-channel
+cat > ~/.config/github-claude-channel/env <<'EOF'
+export GITHUB_TOKEN=github_pat_...
+EOF
+chmod 600 ~/.config/github-claude-channel/env
 ```
 
-The token needs `repo` scope (for reading notifications and action runs). No `admin:repo_hook` needed.
+The token needs `repo` scope (for reading notifications and action runs). No
+`admin:repo_hook` needed.
+
+This file lives outside the plugin directory on purpose. The plugin cache is keyed by
+version, so each release installs into a fresh directory — anything you write inside the
+plugin is orphaned by the next upgrade. Any environment variable from the table below can
+go in here.
 
 ## Setup
 
