@@ -48,7 +48,14 @@ it needs network access once. Subsequent launches run from bun's cache, offline.
 claude plugin install github:fryanpan/github-claude-channel
 ```
 
-Then put your GitHub token where the launcher will find it:
+**If you already use the `gh` CLI, you are done** — the broker falls back to
+`gh auth token`, so an authenticated `gh` needs no further setup. Check with:
+
+```bash
+gh auth status
+```
+
+Otherwise, put a token where the launcher will find it:
 
 ```bash
 mkdir -p ~/.config/github-claude-channel
@@ -93,7 +100,7 @@ Multiple sessions on the same machine all receive events — each session indepe
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GITHUB_TOKEN` | — | PAT with `repo` scope |
+| `GITHUB_TOKEN` | `gh auth token` | PAT with `repo` scope. Optional when `gh` is authenticated — the broker falls back to the CLI's own credential, and logs which source it used. |
 | `GITHUB_CHANNEL_PORT` | `7902` | Broker port (change if 7902 is taken by another user) |
 
 ## Multi-user
@@ -106,7 +113,7 @@ Each Mac user gets their own broker process using their own token and home direc
 git clone https://github.com/fryanpan/github-claude-channel
 cd github-claude-channel
 bun install
-GITHUB_TOKEN=... bun broker.ts   # start broker
+bun broker.ts                    # start broker (uses gh auth token)
 bun server.ts                    # start MCP server (in another terminal)
 curl http://localhost:7902/state # inspect broker state
 ```

@@ -13,7 +13,45 @@
  */
 
 const PORT = parseInt(process.env.GITHUB_CHANNEL_PORT ?? "7902", 10);
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN ?? "";
+/**
+ * Resolve the API token: environment first, then the gh CLI's own credential.
+ *
+ * The broker had exactly one source, an env var, and on a machine where `gh`
+ * was fully authenticated it still logged "No GITHUB_TOKEN -- polling disabled"
+ * and delivered nothing for three weeks. The credential was present the whole
+ * time; the broker simply never looked where it lived. Asking the user to
+ * duplicate a token they already have into a second file is a worse fix than
+ * reading the one that is already there.
+ *
+ * `gh` is invoked by absolute path when a bare lookup fails, because a broker
+ * started by launchd inherits a minimal PATH that does not include Homebrew.
+ */
+function resolveToken(): string {
+  const fromEnv = process.env.GITHUB_TOKEN ?? "";
+  if (fromEnv) return fromEnv;
+  for (const bin of ["gh", "/opt/homebrew/bin/gh", "/usr/local/bin/gh"]) {
+    try {
+      const r = Bun.spawnSync([bin, "auth", "token"], {
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+      if (r.exitCode === 0) {
+        const tok = r.stdout.toString().trim();
+        if (tok) return tok;
+      }
+    } catch {
+      // binary not on this path -- try the next one
+    }
+  }
+  return "";
+}
+
+const GITHUB_TOKEN = resolveToken();
+const TOKEN_SOURCE = process.env.GITHUB_TOKEN
+  ? "environment"
+  : GITHUB_TOKEN
+    ? "gh keyring"
+    : "none";
 
 const NOTIFICATION_POLL_MS = 5_000;
 const DEPLOY_POLL_MS = 30_000;
@@ -380,7 +418,13 @@ Bun.serve({
 });
 
 log(`Broker listening on port ${PORT}`);
-if (!GITHUB_TOKEN) log("WARNING: No GITHUB_TOKEN — polling disabled");
+// Name the source, never the value. Which source resolved is the first thing
+// anyone debugging a silent broker needs, and it is not a secret.
+log(`Token source: ${TOKEN_SOURCE}`);
+if (!GITHUB_TOKEN) {
+  log("WARNING: No token from environment or gh keyring — polling disabled. "
+    + "Fix with `gh auth login`, or set GITHUB_TOKEN.");
+}
 
 notificationLoop();
 deployWatchLoop();
