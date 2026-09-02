@@ -13,7 +13,47 @@
  */
 
 const PORT = parseInt(process.env.GITHUB_CHANNEL_PORT ?? "7902", 10);
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN ?? "";
+/**
+ * Resolve a token the way a person would expect it to be found.
+ *
+ * The env var alone is a single point of failure that fails silently: the
+ * broker starts, logs one warning, serves /health with ok:true, and never
+ * polls again. On a machine where `gh auth token` succeeds and
+ * `gh api /notifications` returns 200, the only thing missing was a file --
+ * and every GitHub event stayed invisible for days while /health said ok.
+ *
+ * The keyring is checked second, not first, so an explicitly-set env var still
+ * wins. The token value is never logged; only which source answered.
+ */
+const GH_BINARIES = ["/opt/homebrew/bin/gh", "/usr/local/bin/gh", "gh"];
+
+function resolveToken(): { token: string; source: string; tried: string[] } {
+  const tried: string[] = [];
+
+  const fromEnv = process.env.GITHUB_TOKEN ?? "";
+  if (fromEnv) return { token: fromEnv, source: "GITHUB_TOKEN env", tried };
+  tried.push("GITHUB_TOKEN env: unset");
+
+  for (const gh of GH_BINARIES) {
+    try {
+      const p = Bun.spawnSync([gh, "auth", "token"], { stderr: "pipe" });
+      if (p.exitCode === 0) {
+        const token = new TextDecoder().decode(p.stdout).trim();
+        if (token) return { token, source: `${gh} auth token`, tried };
+        tried.push(`${gh}: empty output`);
+      } else {
+        tried.push(`${gh}: exit ${p.exitCode}`);
+      }
+    } catch {
+      tried.push(`${gh}: not executable`);
+    }
+  }
+
+  return { token: "", source: "", tried };
+}
+
+const { token: GITHUB_TOKEN, source: TOKEN_SOURCE, tried: TOKEN_TRIED } =
+  resolveToken();
 
 const NOTIFICATION_POLL_MS = 5_000;
 const DEPLOY_POLL_MS = 30_000;
@@ -380,7 +420,11 @@ Bun.serve({
 });
 
 log(`Broker listening on port ${PORT}`);
-if (!GITHUB_TOKEN) log("WARNING: No GITHUB_TOKEN — polling disabled");
+if (GITHUB_TOKEN) {
+  log(`Token resolved from ${TOKEN_SOURCE}`);
+} else {
+  log(`WARNING: no token — polling disabled. Tried: ${TOKEN_TRIED.join("; ")}`);
+}
 
 notificationLoop();
 deployWatchLoop();
