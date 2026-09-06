@@ -55,6 +55,10 @@ function resolveToken(): { token: string; source: string; tried: string[] } {
 const { token: GITHUB_TOKEN, source: TOKEN_SOURCE, tried: TOKEN_TRIED } =
   resolveToken();
 
+/** The broker can only deliver events if a token resolved. Every health surface
+ *  reads this rather than process liveness. */
+const POLLING = Boolean(GITHUB_TOKEN);
+
 const NOTIFICATION_POLL_MS = 5_000;
 const DEPLOY_POLL_MS = 30_000;
 const DEPLOY_WATCH_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -338,7 +342,18 @@ Bun.serve({
     const url = new URL(req.url);
 
     if (url.pathname === "/health") {
-      return Response.json({ ok: true, sessions: sessions.size, deployWatches: deployWatches.size });
+      // `ok` tracks whether the broker can actually DELIVER, not whether the
+      // process is up. A broker with no token serves requests and polls nothing;
+      // reporting that as ok is what let sixteen days of silence look healthy.
+      return Response.json({
+        ok: POLLING,
+        degraded: !POLLING,
+        polling: POLLING,
+        tokenSource: TOKEN_SOURCE || null,
+        triedSources: POLLING ? undefined : TOKEN_TRIED,
+        sessions: sessions.size,
+        deployWatches: deployWatches.size,
+      });
     }
 
     if (url.pathname === "/state") {
@@ -392,6 +407,9 @@ Bun.serve({
       case "/state": {
         // Debug endpoint
         const state = {
+          polling: POLLING,
+          tokenSource: TOKEN_SOURCE || null,
+          triedSources: POLLING ? undefined : TOKEN_TRIED,
           sessions: [...sessions.values()].map((s) => ({
             id: s.id,
             repos: [...s.repos],
