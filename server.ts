@@ -164,6 +164,22 @@ mcp.setRequestHandler(ListToolsRequestSchema, async () => ({
   ],
 }));
 
+/** "Watching X" reads as a promise of delivery. When the broker cannot poll it is
+ *  not one, so every tool that says it appends the truth. Silent on the happy path. */
+async function pollingWarning(): Promise<string> {
+  try {
+    const res = await fetch(`${BROKER_URL}/health`);
+    if (!res.ok) return "";
+    const health = await res.json() as { polling?: boolean };
+    if (health.polling === false) {
+      return "\n\n**WARNING: the broker is not polling — no events will arrive.** Run `show_status` for the sources it tried.";
+    }
+  } catch {
+    return "\n\n**WARNING: the broker is not reachable — no events will arrive.**";
+  }
+  return "";
+}
+
 mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params;
 
@@ -193,7 +209,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
       if (sessionId) {
         await brokerFetch("/watch", { id: sessionId, repo }).catch(() => {});
       }
-      return { content: [{ type: "text", text: `Now watching \`${repo}\`. Events will arrive as channel notifications.` }] };
+      const warning = await pollingWarning();
+      return { content: [{ type: "text", text: `Now watching \`${repo}\`. Events will arrive as channel notifications.${warning}` }] };
     }
 
     case "unwatch_repo": {
@@ -213,7 +230,8 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         return { content: [{ type: "text", text: 'No repos watched. Use `watch_repo` to start.' }] };
       }
       const list = [...watchedRepos].map((r) => `- \`${r}\``).join("\n");
-      return { content: [{ type: "text", text: `Watching:\n${list}` }] };
+      const warning = await pollingWarning();
+      return { content: [{ type: "text", text: `Watching:\n${list}${warning}` }] };
     }
 
     case "show_status": {
@@ -221,6 +239,9 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
         const res = await fetch(`${BROKER_URL}/state`);
         if (!res.ok) throw new Error(`${res.status}`);
         const state = await res.json() as {
+          polling?: boolean;
+          tokenSource?: string | null;
+          triedSources?: string[];
           sessions: Array<{ id: string; repos: string[]; queueDepth: number; lastSeenAgo: string }>;
           deployWatches: Record<string, Array<{ prNumber: number; prTitle: string; mergedAgo: string; expiresIn: string }>>;
         };
@@ -233,8 +254,19 @@ mcp.setRequestHandler(CallToolRequestSchema, async (req) => {
           watches.map((w) => `  - \`${repo}\` PR #${w.prNumber}: "${w.prTitle}" (merged ${w.mergedAgo} ago, expires in ${w.expiresIn})`)
         );
 
+        // A broker that is up but not polling delivers nothing. Say that first,
+        // because "running" is the reading that hid this failure for weeks.
+        const polling = state.polling !== false;
+        const header = polling
+          ? `Broker: running on port ${PORT}, polling via ${state.tokenSource ?? "an unnamed source"}`
+          : [
+              `Broker: DEGRADED — running on port ${PORT} but NOT polling (no token resolved).`,
+              `No GitHub events will be delivered until this is fixed. Sources tried:`,
+              ...(state.triedSources ?? []).map((t) => `  - ${t}`),
+            ].join("\n");
+
         const text = [
-          `Broker: running on port ${PORT}`,
+          header,
           `Sessions (${state.sessions.length}):`,
           ...sessionLines,
           watchLines.length > 0 ? `Deploy watches (${watchLines.length}):` : "Deploy watches: none",
